@@ -24,10 +24,17 @@ CREATE TABLE IF NOT EXISTS pizzas (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS ingredients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price REAL NOT NULL,
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+    );
 `;
 
 db.serialize(() => {
-    db.run(initSql, (err) => {
+    db.exec(initSql, (err) => {
         if (err) {
             console.error('Failed to initialize database', err);
             process.exit(1);
