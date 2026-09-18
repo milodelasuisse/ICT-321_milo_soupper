@@ -27,12 +27,14 @@ const router = express.Router();
  *             properties:
  *               name:
  *                 type: string
- *               ingredients:
- *                 type: string
  *               imageUrl:
  *                 type: string
  *               price:
  *                 type: number
+ *               ingredientIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
  *     responses:
  *       201:
  *         description: Pizza created
@@ -73,12 +75,14 @@ const router = express.Router();
  *             properties:
  *               name:
  *                 type: string
- *               ingredients:
- *                 type: string
  *               imageUrl:
  *                 type: string
  *               price:
  *                 type: number
+ *               ingredientIds:
+ *                 type: array
+ *                 items:
+ *                   type: integer
  *     responses:
  *       200:
  *         description: Pizza updated
@@ -106,9 +110,10 @@ const router = express.Router();
  */
 const createAndUpdateValidations = [
     body('name').isString().notEmpty().withMessage('name is required'),
-    body('ingredients').optional().isString(),
     body('imageUrl').optional().isString().isURL().withMessage('imageUrl must be a valid URL'),
     body('price').isFloat({ gt: 0 }).withMessage('price must be a positive number'),
+    body('ingredientIds').optional().isArray().withMessage('ingredientIds must be an array of integers'),
+    body('ingredientIds.*').optional().isInt().withMessage('ingredientIds must contain integers'),
 ];
 
 router.get('/', pizzaController.findAll);
@@ -116,5 +121,91 @@ router.post('/', createAndUpdateValidations, pizzaController.create);
 router.get('/:id', [param('id').isInt().withMessage('id must be an integer')], pizzaController.findOne);
 router.put('/:id', [param('id').isInt().withMessage('id must be an integer'), ...createAndUpdateValidations], pizzaController.update);
 router.delete('/:id', [param('id').isInt().withMessage('id must be an integer')], pizzaController.delete);
+
+/**
+ * @openapi
+ * /api/v1/pizzas/{id}/ingredients:
+ *   get:
+ *     summary: List ingredients linked to a pizza
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: List of ingredients for this pizza
+ *       404:
+ *         description: Pizza not found
+ *   post:
+ *     summary: Link an existing ingredient to a pizza
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - ingredientId
+ *             properties:
+ *               ingredientId:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Ingredient linked
+ *       404:
+ *         description: Pizza or ingredient not found
+ */
+router.get(
+    '/:id/ingredients',
+    [param('id').isInt().withMessage('id must be an integer')],
+    pizzaController.listIngredients
+);
+router.post(
+    '/:id/ingredients',
+    [
+        param('id').isInt().withMessage('id must be an integer'),
+        body('ingredientId').isInt().withMessage('ingredientId must be an integer'),
+    ],
+    pizzaController.addIngredient
+);
+
+/**
+ * @openapi
+ * /api/v1/pizzas/{id}/ingredients/{ingredientId}:
+ *   delete:
+ *     summary: Unlink an ingredient from a pizza
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: ingredientId
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       204:
+ *         description: Ingredient unlinked
+ *       404:
+ *         description: Pizza not found or ingredient not linked
+ */
+router.delete(
+    '/:id/ingredients/:ingredientId',
+    [
+        param('id').isInt().withMessage('id must be an integer'),
+        param('ingredientId').isInt().withMessage('ingredientId must be an integer'),
+    ],
+    pizzaController.removeIngredient
+);
 
 module.exports = router;
