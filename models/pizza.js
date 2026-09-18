@@ -1,60 +1,80 @@
 
 const db = require('../config/database');
+const PizzaIngredient = require('./pizzaIngredient');
 
 class Pizza {
-    static create({ name, ingredients, imageUrl, price }) {
-        const sql = `INSERT INTO pizzas (name, ingredients, imageUrl, price, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`;
-        const params = [name, ingredients || null, imageUrl || null, price];
+    static async create({ name, imageUrl, price, ingredientIds }) {
+        const sql = `INSERT INTO pizzas (name, imageUrl, price, created_at, updated_at)
+                 VALUES (?, ?, ?, datetime('now'), datetime('now'))`;
+        const params = [name, imageUrl || null, price];
 
-        return new Promise((resolve, reject) => {
+        const id = await new Promise((resolve, reject) => {
             db.run(sql, params, function (err) {
                 if (err) return reject(err);
-                // fetch created row
-                Pizza.findById(this.lastID).then(resolve).catch(reject);
+                resolve(this.lastID);
             });
         });
+
+        if (Array.isArray(ingredientIds) && ingredientIds.length > 0) {
+            await PizzaIngredient.setForPizza(id, ingredientIds);
+        }
+
+        return Pizza.findById(id);
     }
 
-    static findAll() {
+    static async findAll() {
         const sql = `SELECT * FROM pizzas ORDER BY id DESC`;
-        return new Promise((resolve, reject) => {
+        const rows = await new Promise((resolve, reject) => {
             db.all(sql, [], (err, rows) => {
                 if (err) return reject(err);
                 resolve(rows);
             });
         });
+
+        return Promise.all(rows.map(async (row) => ({
+            ...row,
+            ingredientsList: await PizzaIngredient.findIngredientsByPizzaId(row.id),
+        })));
     }
 
-    static findById(id) {
+    static async findById(id) {
         const sql = `SELECT * FROM pizzas WHERE id = ?`;
-        return new Promise((resolve, reject) => {
+        const row = await new Promise((resolve, reject) => {
             db.get(sql, [id], (err, row) => {
                 if (err) return reject(err);
                 resolve(row || null);
             });
         });
+        if (!row) return null;
+
+        row.ingredientsList = await PizzaIngredient.findIngredientsByPizzaId(id);
+        return row;
     }
 
-    static update(id, { name, ingredients, imageUrl, price }) {
+    static async update(id, { name, imageUrl, price, ingredientIds }) {
         const sql = `
       UPDATE pizzas
       SET name = COALESCE(?, name),
-          ingredients = COALESCE(?, ingredients),
           imageUrl = COALESCE(?, imageUrl),
           price = COALESCE(?, price),
           updated_at = datetime('now')
       WHERE id = ?
     `;
-        const params = [name, ingredients, imageUrl, price, id];
+        const params = [name, imageUrl, price, id];
 
-        return new Promise((resolve, reject) => {
+        const changes = await new Promise((resolve, reject) => {
             db.run(sql, params, function (err) {
                 if (err) return reject(err);
-                if (this.changes === 0) return resolve(null);
-                Pizza.findById(id).then(resolve).catch(reject);
+                resolve(this.changes);
             });
         });
+        if (changes === 0) return null;
+
+        if (Array.isArray(ingredientIds)) {
+            await PizzaIngredient.setForPizza(id, ingredientIds);
+        }
+
+        return Pizza.findById(id);
     }
 
     static delete(id) {
